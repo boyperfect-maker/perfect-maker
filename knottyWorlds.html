@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knitting with Custom Textures</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        input {
+            position: fixed;
+            top: 10px;
+            z-index: 100;
+        }
+        #imageLoader {
+            left: 10px;
+        }
+        #textureLoader {
+            left: 140px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Upload Inputs -->
+    <input type="file" id="imageLoader" accept="image/png" />
+    <input type="file" id="textureLoader" accept="image/png" />
+
+    <!-- Three.js Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, knitTexture;
+
+        // Initialize Three.js
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 50);
+
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            animate();
+        }
+
+        // Handle texture loading
+        function loadTexture(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = function() {
+                    const texture = new THREE.Texture(img);
+                    texture.needsUpdate = true;
+                    knitTexture = texture;
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Create stitches from image
+        function generateStitchesFromImage(imageData, imageWidth, imageHeight) {
+            const group = new THREE.Group();
+            const pixelSize = 1.5; // Adjust size of pixels in 3D space
+
+            for (let y = 0; y < imageHeight; y++) {
+                for (let x = 0; x < imageWidth; x++) {
+                    const pixelIndex = (y * imageWidth + x) * 4; // Each pixel has 4 values (RGBA)
+
+                    const r = imageData[pixelIndex];
+                    const g = imageData[pixelIndex + 1];
+                    const b = imageData[pixelIndex + 2];
+                    const a = imageData[pixelIndex + 3];
+
+                    if (a === 0) continue; // Skip transparent pixels
+
+                    // Create a PlaneGeometry for the stitch
+                    const geometry = new THREE.PlaneGeometry(1, 1);
+
+                    // Create a material for the texture
+                    const material = knitTexture
+                        ? new THREE.MeshBasicMaterial({
+                              map: knitTexture,
+                              color: new THREE.Color(`rgb(${r}, ${g}, ${b})`), // Colorize the texture
+                              transparent: true,
+                          })
+                        : new THREE.MeshBasicMaterial({
+                              color: new THREE.Color(`rgb(${r}, ${g}, ${b})`),
+                          });
+
+                    const plane = new THREE.Mesh(geometry, material);
+
+                    // Position the plane based on pixel position
+                    plane.position.set(
+                        (x - imageWidth / 2) * pixelSize,
+                        (imageHeight / 2 - y) * pixelSize,
+                        0
+                    );
+
+                    group.add(plane);
+                }
+            }
+
+            scene.add(group);
+        }
+
+        // Load image and process pixel data
+        function loadPixelArt(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    context.drawImage(img, 0, 0);
+
+                    const imageData = context.getImageData(0, 0, img.width, img.height).data;
+                    generateStitchesFromImage(imageData, img.width, img.height);
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Event listeners for file uploads
+        document.getElementById('imageLoader').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                loadPixelArt(file);
+            }
+        });
+
+        document.getElementById('textureLoader').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                loadTexture(file);
+            }
+        });
+
+        // Animation loop
+        function animate() {
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+
+        // Adjust scene on window resize
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        // Initialize Three.js
+        init();
+    </script>
+</body>
+</html>
