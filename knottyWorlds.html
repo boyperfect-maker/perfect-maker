@@ -88,7 +88,7 @@
             renderer.domElement.addEventListener('touchcancel', touchEndHandler);
         }
 
-        // Add color change functionality with thread outline highlighting
+        // Add color change functionality with enhanced visible outline
         function addColorChangeHandler() {
             const colorPicker = document.getElementById('colorPicker');
 
@@ -114,9 +114,12 @@
                     const selectedObject = intersects[0].object;
                     selectedThreadMaterial = selectedObject.material;
 
-                    // Add outline to the selected object
+                    // Create enhanced visible outline
                     const outlineGeometry = new THREE.EdgesGeometry(selectedObject.geometry);
-                    const outlineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                    const outlineMaterial = new THREE.LineBasicMaterial({
+                        color: 0xffd700, // Bright gold color for visibility
+                        linewidth: 3 // Thicker outline
+                    });
                     const outline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
 
                     outline.position.copy(selectedObject.position);
