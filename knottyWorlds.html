@@ -20,17 +20,21 @@
         #textureLoader {
             left: 140px;
         }
+        #colorPicker {
+            left: 270px;
+        }
     </style>
 </head>
 <body>
     <!-- Upload Inputs -->
     <input type="file" id="imageLoader" accept="image/png" />
     <input type="file" id="textureLoader" accept="image/png" />
+    <input type="color" id="colorPicker" value="#ff0000" />
 
     <!-- Three.js Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        let scene, camera, renderer, knitTexture;
+        let scene, camera, renderer, knitTexture, selectedThreadMaterial = null;
 
         // Initialize Three.js
         function init() {
@@ -44,6 +48,9 @@
 
             // Add event listeners for pinch-to-zoom
             addPinchToZoom();
+
+            // Add event listeners for thread color change
+            addColorChangeHandler();
             animate();
         }
 
@@ -79,6 +86,47 @@
             renderer.domElement.addEventListener('touchmove', touchMoveHandler);
             renderer.domElement.addEventListener('touchend', touchEndHandler);
             renderer.domElement.addEventListener('touchcancel', touchEndHandler);
+        }
+
+        // Add color change functionality for threads
+        function addColorChangeHandler() {
+            const colorPicker = document.getElementById('colorPicker');
+
+            function selectThread(event) {
+                // Raycasting to detect selected object
+                const rect = renderer.domElement.getBoundingClientRect();
+                const pointer = {
+                    x: ((event.touches[0].clientX - rect.left) / rect.width) * 2 - 1,
+                    y: -((event.touches[0].clientY - rect.top) / rect.height) * 2 + 1
+                };
+
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(pointer, camera);
+
+                const intersects = raycaster.intersectObjects(scene.children, true);
+
+                if (intersects.length > 0) {
+                    selectedThreadMaterial = intersects[0].object.material;
+                    // Set color picker value to selected thread color
+                    const selectedColor = selectedThreadMaterial.color.getStyle();
+                    colorPicker.value = rgbToHex(selectedColor);
+                }
+            }
+
+            function changeThreadColor(event) {
+                if (selectedThreadMaterial) {
+                    const newColor = event.target.value;
+                    selectedThreadMaterial.color.set(newColor);
+                }
+            }
+
+            function rgbToHex(rgbString) {
+                const rgbArray = rgbString.match(/\d+/g).map(Number);
+                return `#${rgbArray.map(v => v.toString(16).padStart(2, '0')).join('')}`;
+            }
+
+            renderer.domElement.addEventListener('touchstart', selectThread);
+            colorPicker.addEventListener('change', changeThreadColor);
         }
 
         // Handle texture loading
