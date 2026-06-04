@@ -88,7 +88,7 @@
             renderer.domElement.addEventListener('touchcancel', touchEndHandler);
         }
 
-        // Add color change functionality with enhanced visible outline
+        // Add color change functionality with enhanced and correctly positioned outline
         function addColorChangeHandler() {
             const colorPicker = document.getElementById('colorPicker');
 
@@ -114,7 +114,7 @@
                     const selectedObject = intersects[0].object;
                     selectedThreadMaterial = selectedObject.material;
 
-                    // Create enhanced visible outline
+                    // Create enhanced visible and repositioned outline
                     const outlineGeometry = new THREE.EdgesGeometry(selectedObject.geometry);
                     const outlineMaterial = new THREE.LineBasicMaterial({
                         color: 0xffd700, // Bright gold color for visibility
@@ -125,6 +125,9 @@
                     outline.position.copy(selectedObject.position);
                     outline.rotation.copy(selectedObject.rotation);
                     outline.scale.copy(selectedObject.scale);
+
+                    // Move the outline slightly closer to the camera
+                    outline.position.z -= 0.1;
 
                     scene.add(outline);
                     selectedOutline = outline;
