@@ -34,7 +34,7 @@
     <!-- Three.js Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        let scene, camera, renderer, knitTexture, selectedThreadMaterial = null;
+        let scene, camera, renderer, knitTexture, selectedThreadMaterial = null, selectedOutline = null;
 
         // Initialize Three.js
         function init() {
@@ -88,7 +88,7 @@
             renderer.domElement.addEventListener('touchcancel', touchEndHandler);
         }
 
-        // Add color change functionality for threads
+        // Add color change functionality with thread outline highlighting
         function addColorChangeHandler() {
             const colorPicker = document.getElementById('colorPicker');
 
@@ -106,8 +106,27 @@
                 const intersects = raycaster.intersectObjects(scene.children, true);
 
                 if (intersects.length > 0) {
-                    selectedThreadMaterial = intersects[0].object.material;
-                    // Set color picker value to selected thread color
+                    if (selectedOutline) {
+                        scene.remove(selectedOutline); // Remove existing outline
+                        selectedOutline = null;
+                    }
+
+                    const selectedObject = intersects[0].object;
+                    selectedThreadMaterial = selectedObject.material;
+
+                    // Add outline to the selected object
+                    const outlineGeometry = new THREE.EdgesGeometry(selectedObject.geometry);
+                    const outlineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+                    const outline = new THREE.LineSegments(outlineGeometry, outlineMaterial);
+
+                    outline.position.copy(selectedObject.position);
+                    outline.rotation.copy(selectedObject.rotation);
+                    outline.scale.copy(selectedObject.scale);
+
+                    scene.add(outline);
+                    selectedOutline = outline;
+
+                    // Set color picker value to the selected thread color
                     const selectedColor = selectedThreadMaterial.color.getStyle();
                     colorPicker.value = rgbToHex(selectedColor);
                 }
