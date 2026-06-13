@@ -47,18 +47,15 @@
         #stitchToolBtn {
             left: 370px;
         }
-        #stitchColorBtn {
-            left: 540px;
-        }
         #exportBtn {
-            left: 680px;
+            left: 540px;
             background-color: #2196F3;
         }
         #exportBtn:hover {
             background-color: #0b7dda;
         }
         #clearStitchesBtn {
-            left: 800px;
+            left: 660px;
             background-color: #f44336;
         }
         #clearStitchesBtn:hover {
@@ -141,6 +138,18 @@
         .close:hover {
             color: white;
         }
+        #debugInfo {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #00ff00;
+            padding: 10px;
+            font-size: 12px;
+            font-family: monospace;
+            z-index: 100;
+            max-width: 300px;
+        }
     </style>
 </head>
 <body>
@@ -152,23 +161,30 @@
     <!-- Stitch Tool Button -->
     <button id="stitchToolBtn">Stitch Tool (OFF)</button>
     
-    <!-- Stitch Color Picker -->
-    <input type="color" id="stitchColorPicker" value="#ff00ff" />
-    
     <!-- Export Button -->
     <button id="exportBtn">Export</button>
     
     <!-- Clear Stitches Button -->
     <button id="clearStitchesBtn">Clear Stitches</button>
     
+    <!-- Stitch Color Picker -->
+    <input type="color" id="stitchColorPicker" value="#ff00ff" />
+    
     <!-- Stitch Tool Controls -->
     <div class="control-group">
-        <label class="slider-label">Opacity: <span id="opacityValue">0.8</span></label>
+        <label class="slider-label">Stitch Color</label>
+        <input type="color" id="stitchColorPicker" value="#ff00ff" style="width: 100%; height: 30px; cursor: pointer;" />
+        
+        <label class="slider-label" style="margin-top: 10px;">Opacity: <span id="opacityValue">0.8</span></label>
         <input type="range" id="stitchOpacitySlider" min="0.1" max="1" step="0.1" value="0.8" />
         
         <label class="slider-label">Thickness: <span id="thicknessValue">2</span></label>
         <input type="range" id="stitchThicknessSlider" min="1" max="10" step="1" value="2" />
     </div>
+
+    <!-- Debug Info -->
+    <div id="debugInfo">Tool: <span id="debugTool">OFF</span><br>
+    Point: <span id="debugPoint">None</span></div>
 
     <!-- Export Modal -->
     <div id="exportModal">
@@ -199,15 +215,18 @@
         let stitchThickness = 2;
         let stitchColor = 0xff00ff;
         let currentImage = null;
+        let pixelPlanes = []; // Track all pixel planes for raycast
 
         // Initialize Three.js
         function init() {
             scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 0, 50);
 
             renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
 
             // Add stitch group to scene
@@ -271,12 +290,14 @@
             const thicknessValue = document.getElementById('thicknessValue');
             const stitchColorPicker = document.getElementById('stitchColorPicker');
             const clearStitchesBtn = document.getElementById('clearStitchesBtn');
+            const debugTool = document.getElementById('debugTool');
 
             // Toggle stitch tool
             stitchToolBtn.addEventListener('click', () => {
                 stitchToolActive = !stitchToolActive;
                 stitchToolBtn.textContent = stitchToolActive ? 'Stitch Tool (ON)' : 'Stitch Tool (OFF)';
                 stitchToolBtn.classList.toggle('active', stitchToolActive);
+                debugTool.textContent = stitchToolActive ? 'ON' : 'OFF';
                 if (!stitchToolActive) {
                     stitchStartPoint = null;
                 }
@@ -286,7 +307,6 @@
             opacitySlider.addEventListener('input', (e) => {
                 stitchOpacity = parseFloat(e.target.value);
                 opacityValue.textContent = stitchOpacity.toFixed(1);
-                // Update existing stitches
                 stitchGroup.children.forEach(child => {
                     updateStitchOpacity(child, stitchOpacity);
                 });
@@ -337,17 +357,18 @@
         // Handle stitch tool click
         function handleStitchClick(event) {
             if (!stitchToolActive) return;
+            event.stopPropagation();
 
             const pos = getPointerPosition(event);
             const intersect = raycastToGrid(pos);
 
             if (intersect) {
                 if (!stitchStartPoint) {
-                    // Start a new stitch
                     stitchStartPoint = intersect.point.clone();
+                    document.getElementById('debugPoint').textContent = `Start (${stitchStartPoint.x.toFixed(1)}, ${stitchStartPoint.y.toFixed(1)})`;
                 } else {
-                    // Complete the stitch
                     drawDashedStitch(stitchStartPoint, intersect.point);
+                    document.getElementById('debugPoint').textContent = `End (${intersect.point.x.toFixed(1)}, ${intersect.point.y.toFixed(1)})`;
                     stitchStartPoint = null;
                     if (stitchLine) {
                         scene.remove(stitchLine);
@@ -365,10 +386,8 @@
             const intersect = raycastToGrid(pos);
 
             if (intersect) {
-                // Remove old preview line
                 if (stitchLine) scene.remove(stitchLine);
 
-                // Draw preview line
                 const geometry = new THREE.BufferGeometry();
                 const positions = new Float32Array([
                     stitchStartPoint.x, stitchStartPoint.y, stitchStartPoint.z,
@@ -378,12 +397,13 @@
 
                 const material = new THREE.LineBasicMaterial({
                     color: 0x00ff00,
-                    linewidth: 1,
+                    linewidth: 2,
                     transparent: true,
-                    opacity: 0.5
+                    opacity: 0.7
                 });
 
                 stitchLine = new THREE.Line(geometry, material);
+                stitchLine.renderOrder = 100;
                 scene.add(stitchLine);
             }
         }
@@ -392,7 +412,7 @@
         function getPointerPosition(event) {
             let clientX, clientY;
 
-            if (event.touches) {
+            if (event.touches && event.touches.length > 0) {
                 clientX = event.touches[0].clientX;
                 clientY = event.touches[0].clientY;
             } else {
@@ -410,14 +430,10 @@
         // Raycast to find intersection with grid
         function raycastToGrid(pointer) {
             raycaster.setFromCamera(pointer, camera);
-            const intersects = raycaster.intersectObjects(scene.children, true);
+            const intersects = raycaster.intersectObjects(pixelPlanes, false);
 
-            // Find intersection with a stitch plane (not the stitch lines)
-            for (let i = 0; i < intersects.length; i++) {
-                const obj = intersects[i].object;
-                if (obj.geometry instanceof THREE.PlaneGeometry && !obj.isStitchLine) {
-                    return intersects[i];
-                }
+            if (intersects.length > 0) {
+                return intersects[0];
             }
 
             return null;
@@ -426,7 +442,10 @@
         // Draw dashed stitch line between two points
         function drawDashedStitch(start, end) {
             const distance = start.distanceTo(end);
-            const segments = Math.ceil(distance / 0.5);
+            const dashLength = 0.3;
+            const gapLength = 0.2;
+            const segmentLength = dashLength + gapLength;
+            const numDashes = Math.ceil(distance / segmentLength);
 
             const dashGroup = new THREE.Group();
             dashGroup.metadata = {
@@ -437,18 +456,17 @@
                 thickness: stitchThickness
             };
 
-            for (let i = 0; i < segments; i++) {
-                const progress = i / segments;
-                const nextProgress = (i + 1) / segments;
+            const direction = end.clone().sub(start).normalize();
 
-                const segStart = start.clone().lerp(end, progress);
-                const segEnd = start.clone().lerp(end, nextProgress);
+            for (let i = 0; i < numDashes; i++) {
+                const dashStart = start.clone().addScaledVector(direction, i * segmentLength);
+                const dashEnd = start.clone().addScaledVector(direction, Math.min((i + 0.6) * segmentLength, distance));
 
-                // Draw dash
+                // Draw dash line
                 const dashGeometry = new THREE.BufferGeometry();
                 const dashPositions = new Float32Array([
-                    segStart.x, segStart.y, segStart.z + 0.1,
-                    segEnd.x, segEnd.y, segEnd.z + 0.1
+                    dashStart.x, dashStart.y, dashStart.z + 0.1,
+                    dashEnd.x, dashEnd.y, dashEnd.z + 0.1
                 ]);
                 dashGeometry.setAttribute('position', new THREE.BufferAttribute(dashPositions, 3));
 
@@ -457,34 +475,39 @@
                     linewidth: stitchThickness,
                     transparent: true,
                     opacity: stitchOpacity,
-                    depthTest: true
+                    depthTest: false,
+                    depthWrite: false
                 });
 
                 const dashLine = new THREE.Line(dashGeometry, dashMaterial);
                 dashLine.isStitchLine = true;
                 dashGroup.add(dashLine);
 
-                // Add connection points at intervals
-                if (i % 3 === 0) {
-                    const pointGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+                // Add connection nodes
+                if (i % 2 === 0) {
+                    const pointGeometry = new THREE.SphereGeometry(0.15, 6, 6);
                     const pointMaterial = new THREE.MeshBasicMaterial({
                         color: stitchColor,
                         transparent: true,
-                        opacity: stitchOpacity
+                        opacity: stitchOpacity,
+                        depthTest: false,
+                        depthWrite: false
                     });
                     const pointMesh = new THREE.Mesh(pointGeometry, pointMaterial);
-                    pointMesh.position.copy(segStart);
+                    pointMesh.position.copy(dashStart);
                     pointMesh.isStitchLine = true;
                     dashGroup.add(pointMesh);
                 }
             }
 
             // Add end point
-            const endGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+            const endGeometry = new THREE.SphereGeometry(0.15, 6, 6);
             const endMaterial = new THREE.MeshBasicMaterial({
                 color: stitchColor,
                 transparent: true,
-                opacity: stitchOpacity
+                opacity: stitchOpacity,
+                depthTest: false,
+                depthWrite: false
             });
             const endMesh = new THREE.Mesh(endGeometry, endMaterial);
             endMesh.position.copy(end);
@@ -495,7 +518,7 @@
             stitches.push(dashGroup);
         }
 
-        // Add color change functionality with improved outline rendering
+        // Add color change functionality
         function addColorChangeHandler() {
             const colorPicker = document.getElementById('colorPicker');
 
@@ -503,15 +526,24 @@
                 if (stitchToolActive) return;
 
                 const rect = renderer.domElement.getBoundingClientRect();
+                let clientX, clientY;
+
+                if (event.touches && event.touches.length > 0) {
+                    clientX = event.touches[0].clientX;
+                    clientY = event.touches[0].clientY;
+                } else {
+                    return;
+                }
+
                 const pointer = {
-                    x: ((event.touches[0].clientX - rect.left) / rect.width) * 2 - 1,
-                    y: -((event.touches[0].clientY - rect.top) / rect.height) * 2 + 1
+                    x: ((clientX - rect.left) / rect.width) * 2 - 1,
+                    y: -((clientY - rect.top) / rect.height) * 2 + 1
                 };
 
                 const raycaster = new THREE.Raycaster();
                 raycaster.setFromCamera(pointer, camera);
 
-                const intersects = raycaster.intersectObjects(scene.children, true);
+                const intersects = raycaster.intersectObjects(pixelPlanes, false);
 
                 if (intersects.length > 0) {
                     if (selectedOutline) {
@@ -594,10 +626,7 @@
 
         // Export as PNG
         function exportAsPNG() {
-            // Render the scene to ensure all stitches are visible
             renderer.render(scene, camera);
-            
-            // Get canvas data
             const canvas = renderer.domElement;
             canvas.toBlob((blob) => {
                 const url = URL.createObjectURL(blob);
@@ -655,6 +684,7 @@
         function generateStitchesFromImage(imageData, imageWidth, imageHeight) {
             const group = new THREE.Group();
             const pixelSize = 1.0;
+            pixelPlanes = [];
 
             for (let y = 0; y < imageHeight; y++) {
                 for (let x = 0; x < imageWidth; x++) {
@@ -667,7 +697,7 @@
 
                     if (a === 0) continue;
 
-                    const geometry = new THREE.PlaneGeometry(1.5, 1.5);
+                    const geometry = new THREE.PlaneGeometry(1.0, 1.0);
 
                     const material = knitTexture
                         ? new THREE.MeshBasicMaterial({
@@ -680,14 +710,15 @@
                           });
 
                     const plane = new THREE.Mesh(geometry, material);
-
                     plane.position.set(
                         (x - imageWidth / 2) * pixelSize,
                         (imageHeight / 2 - y) * pixelSize,
                         0
                     );
 
+                    plane.userData.isPixelPlane = true;
                     group.add(plane);
+                    pixelPlanes.push(plane);
                 }
             }
 
