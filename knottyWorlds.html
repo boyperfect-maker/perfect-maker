@@ -495,6 +495,7 @@
                     });
                     const pointMesh = new THREE.Mesh(pointGeometry, pointMaterial);
                     pointMesh.position.copy(dashStart);
+                    pointMesh.position.z += 0.05;
                     pointMesh.isStitchLine = true;
                     dashGroup.add(pointMesh);
                 }
@@ -511,6 +512,7 @@
             });
             const endMesh = new THREE.Mesh(endGeometry, endMaterial);
             endMesh.position.copy(end);
+            endMesh.position.z += 0.05;
             endMesh.isStitchLine = true;
             dashGroup.add(endMesh);
 
